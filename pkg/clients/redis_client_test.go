@@ -10,7 +10,7 @@ import (
 	"github.com/comfforts/thaila/pkg/clients"
 )
 
-func TestRedisClient(t *testing.T) {
+func TestRedisClientPubSub(t *testing.T) {
 	t.Parallel()
 
 	// Initialize the Redis client
@@ -67,4 +67,48 @@ func TestRedisClient(t *testing.T) {
 
 	wg.Wait()
 	fmt.Println("message processing done")
+}
+
+func TestRedisClientSetGetDelete(t *testing.T) {
+	t.Parallel()
+
+	// Initialize the Redis client
+	rcl, err := clients.NewRedisClient()
+	if err != nil {
+		fmt.Println("error initializing redis client")
+		return
+	}
+	defer rcl.Close()
+
+	ctx := t.Context()
+	d := time.Now().Add(time.Second * 5)
+	ctx, cancel := context.WithDeadline(ctx, d)
+	defer cancel()
+
+	testKey := "test-key"
+
+	err = rcl.Set(ctx, testKey, "test-value", time.Second*5)
+	if err != nil {
+		fmt.Println("error setting redis key-value pair - ", err)
+		return
+	}
+	value, err := rcl.Get(ctx, testKey)
+	if err != nil {
+		fmt.Println("error getting redis key-value pair - ", err)
+		return
+	}
+	fmt.Printf("Redis key - %s, value - %s\n", testKey, value)
+
+	err = rcl.Delete(ctx, testKey)
+	if err != nil {
+		fmt.Println("error deleting redis key-value pair - ", err)
+		return
+	}
+	value, err = rcl.Get(ctx, testKey)
+	if err != nil {
+		fmt.Println("error getting redis key-value pair after deletion - ", err)
+	} else {
+		fmt.Printf("Unexpectedly found key - %s with value - %s after deletion\n", testKey, value)
+	}
+	fmt.Println("Redis key-value operations test completed successfully")
 }

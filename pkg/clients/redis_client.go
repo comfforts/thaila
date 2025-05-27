@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	// "mercury/pkg/log"
@@ -14,12 +15,16 @@ const (
 	ERR_REDIS_SUBSCRIBE = "error subscribing to redis PubSub"
 	ERR_REDIS_HOST      = "error missing redis host"
 	ERR_REDIS_PASS      = "error missing redis pass"
+	ERR_NOT_FOUND       = "error not found"
+	ERR_REDIS_CLOSE     = "error closing redis"
 )
 
 var (
 	ErrRedisSubscribe = errors.New(ERR_REDIS_SUBSCRIBE)
 	ErrRedisPass      = errors.New(ERR_REDIS_PASS)
 	ErrRedisHost      = errors.New(ERR_REDIS_HOST)
+	ErrNotFound       = errors.New(ERR_NOT_FOUND)
+	ErrRedisClose     = errors.New(ERR_REDIS_CLOSE)
 )
 
 const MESSAGE_CHANNEL = "test-message-ch"
@@ -90,10 +95,40 @@ func (rc *redisClient) Publish(ctx context.Context, ch, msg string) {
 	}
 }
 
-func (rc *redisClient) Close() {
-	// log.Info(nil, "closing redis connection")
+func (rc *redisClient) Get(ctx context.Context, key string) (any, error) {
+	result, err := rc.client.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return nil, ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (rc *redisClient) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
+	err := rc.client.Set(ctx, key, value, ttl).Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rc *redisClient) Delete(ctx context.Context, key string) error {
+	err := rc.client.Del(ctx, key).Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (rc *redisClient) Close() error {
 	err := rc.client.Close()
 	if err != nil {
-		// log.Errorf(nil, "error closing redis connection: %v", err)
+		return err
 	}
+
+	return nil
 }
