@@ -1,0 +1,59 @@
+
+services:
+  redis-master:
+    image: "bitnami/redis:latest"
+    restart: always
+    ports:
+      - 6380:6379
+    environment:
+      - REDIS_REPLICATION_MODE=master
+      - REDIS_PASSWORD=redispwd
+    volumes:
+      - data:/redis
+    networks:
+      - local-comfforts
+
+  redis-replica:
+    image: "bitnami/redis:latest"
+    restart: always
+    ports:
+      - "6381:6379"
+    environment:
+      - REDIS_REPLICATION_MODE=slave
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_PORT_NUMBER=6379
+      - REDIS_MASTER_PASSWORD=redispwd
+      - REDIS_PASSWORD=redispwd
+    depends_on:
+      - redis-master
+    volumes:
+      - data:/redis
+    networks:
+      - local-comfforts
+
+  redis-sentinel:
+    image: "bitnami/redis-sentinel:latest"
+    restart: always
+    ports:
+      - "26380:26379"
+    environment:
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_PORT_NUMBER=6379
+      - REDIS_MASTER_PASSWORD=redispwd
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_SENTINEL_PASSWORD=redispwd
+    depends_on:
+      - redis-master
+      - redis-replica
+    volumes:
+      - data:/redis
+    networks:
+      - local-comfforts
+
+networks:
+  local-comfforts:
+    external: true
+
+volumes:
+  data:
+    driver: local
