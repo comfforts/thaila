@@ -35,38 +35,38 @@ type redisClient struct {
 
 // RedisConfig holds configuration for connecting to a Redis server.
 type RedisConfig struct {
-	Host     string // Redis server host
-	Password string // Redis server password
-	Port     string // Redis server port
+	host     string // Redis server host
+	password string // Redis server password
+	port     string // Redis server port
 }
 
 // NewRedisConfig returns a new RedisConfig with the given host, password, and port.
 func NewRedisConfig(host, pass, port string) RedisConfig {
 	return RedisConfig{
-		Host:     host,
-		Password: pass,
-		Port:     port,
+		host:     host,
+		password: pass,
+		port:     port,
 	}
 }
 
 // NewRedisClient creates a new Redis client using the provided configuration.
 // Returns an error if any required configuration is missing.
 func NewRedisClient(cfg RedisConfig) (*redisClient, error) {
-	if cfg.Password == "" {
+	if cfg.password == "" {
 		return nil, ErrRedisPass
 	}
 
-	if cfg.Host == "" {
+	if cfg.host == "" {
 		return nil, ErrRedisHost
 	}
 
-	if cfg.Port == "" {
+	if cfg.port == "" {
 		return nil, ErrRedisPort
 	}
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
-		Password: cfg.Password,
+		Addr:     fmt.Sprintf("%s:%s", cfg.host, cfg.port),
+		Password: cfg.password,
 	})
 
 	// TODO setup sentinel support if needed

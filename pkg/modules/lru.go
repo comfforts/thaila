@@ -29,7 +29,7 @@ type LRUConfig struct {
 	limit    int // Maximum size of a single value in bytes (currently unused).
 }
 
-// NewLRUConfig returns a new LRUConfig with the given capacity.
+// NewLRUConfig returns a new LRUConfig with the given capacity & limit.
 func NewLRUConfig(capacity, limit int) LRUConfig {
 	return LRUConfig{
 		capacity: capacity,
@@ -45,9 +45,9 @@ type node[K comparable, V any] struct {
 	next  *node[K, V]
 }
 
-// LRUCache is a fixed-capacity Least Recently Used (LRU) cache.
+// lruCache is a fixed-capacity Least Recently Used (LRU) cache.
 // It is safe for concurrent use.
-type LRUCache[K comparable, V any] struct {
+type lruCache[K comparable, V any] struct {
 	LRUConfig
 	cache map[K]*node[K, V]
 	head  *node[K, V]
@@ -55,9 +55,9 @@ type LRUCache[K comparable, V any] struct {
 	lock  sync.RWMutex
 }
 
-// NewLRUCache creates a new LRUCache with the specified configuration.
+// NewLRUCache creates a new lruCache with the specified configuration.
 // Returns an error if the capacity is less than 1.
-func NewLRUCache[K comparable, V any](cfg LRUConfig) (*LRUCache[K, V], error) {
+func NewLRUCache[K comparable, V any](cfg LRUConfig) (*lruCache[K, V], error) {
 	if cfg.capacity < 1 {
 		return nil, ErrLRUCap
 	}
@@ -67,7 +67,7 @@ func NewLRUCache[K comparable, V any](cfg LRUConfig) (*LRUCache[K, V], error) {
 	head.next = tail
 	tail.prev = head
 
-	return &LRUCache[K, V]{
+	return &lruCache[K, V]{
 		LRUConfig: cfg,
 		cache:     make(map[K]*node[K, V]),
 		head:      head,
@@ -78,8 +78,9 @@ func NewLRUCache[K comparable, V any](cfg LRUConfig) (*LRUCache[K, V], error) {
 // Set inserts or updates a value in the cache for the given key.
 // If the cache exceeds its capacity, the least recently used item is evicted.
 // Returns ErrValueTooLarge if the value is larger than limit or 512MB.
+// Max limit is used when limit < 1
 // The ttl parameter is currently unused.
-func (c *LRUCache[K, V]) Set(ctx context.Context, key K, value V, ttl time.Duration) error {
+func (c *lruCache[K, V]) Set(ctx context.Context, key K, value V, ttl time.Duration) error {
 	// Serialize value to check its size
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -117,7 +118,7 @@ func (c *LRUCache[K, V]) Set(ctx context.Context, key K, value V, ttl time.Durat
 
 // Get returns the value for the given key if present, or an error if not found.
 // Accessing a key moves it to the most recently used position.
-func (c *LRUCache[K, V]) Get(ctx context.Context, key K) (V, error) {
+func (c *lruCache[K, V]) Get(ctx context.Context, key K) (V, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -131,7 +132,7 @@ func (c *LRUCache[K, V]) Get(ctx context.Context, key K) (V, error) {
 
 // Delete removes the value for the given key from the cache.
 // Returns an error if the key is not present.
-func (c *LRUCache[K, V]) Delete(ctx context.Context, key K) error {
+func (c *lruCache[K, V]) Delete(ctx context.Context, key K) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -144,7 +145,7 @@ func (c *LRUCache[K, V]) Delete(ctx context.Context, key K) error {
 }
 
 // Clear removes all entries from the cache and resets the linked list
-func (c *LRUCache[K, V]) Clear() {
+func (c *lruCache[K, V]) Clear() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -157,22 +158,22 @@ func (c *LRUCache[K, V]) Clear() {
 }
 
 // Close doesn't do anything for LRU cache.
-func (c *LRUCache[K, V]) Close() error {
+func (c *lruCache[K, V]) Close() error {
 	return nil
 }
 
 // moveToFront moves a node to front (MRU position)
-func (c *LRUCache[K, V]) moveToFront(n *node[K, V]) {
+func (c *lruCache[K, V]) moveToFront(n *node[K, V]) {
 	c.remove(n)
 	c.insertAtFront(n)
 }
 
-func (c *LRUCache[K, V]) remove(n *node[K, V]) {
+func (c *lruCache[K, V]) remove(n *node[K, V]) {
 	n.prev.next = n.next
 	n.next.prev = n.prev
 }
 
-func (c *LRUCache[K, V]) insertAtFront(n *node[K, V]) {
+func (c *lruCache[K, V]) insertAtFront(n *node[K, V]) {
 	n.next = c.head.next
 	n.prev = c.head
 	c.head.next.prev = n
