@@ -3,21 +3,31 @@ package clients_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"github.com/comfforts/thaila/pkg/clients"
 )
 
+const MESSAGE_CHANNEL = "test-message-ch"
+
 func TestRedisClientPubSub(t *testing.T) {
+	err := godotenv.Load("../../env/test.env")
+	if err != nil {
+		t.Fatalf("error loading environment: %v", err)
+	}
+
 	t.Parallel()
 
 	// Initialize the Redis client
-	rcl, err := clients.NewRedisClient()
+	cfg := getRedisTestClientConfig()
+	rcl, err := clients.NewRedisClient(cfg)
 	if err != nil {
-		fmt.Println("error initializing redis client")
-		return
+		t.Fatalf("error initializing redis client: %v", err)
 	}
 	defer rcl.Close()
 
@@ -26,10 +36,9 @@ func TestRedisClientPubSub(t *testing.T) {
 	ctx, cancel := context.WithDeadline(ctx, d)
 	defer cancel()
 
-	ch, err := rcl.Subscribe(ctx, clients.MESSAGE_CHANNEL)
+	ch, err := rcl.Subscribe(ctx, MESSAGE_CHANNEL)
 	if err != nil {
-		fmt.Println("error subscribing to redis channel")
-		return
+		t.Fatalf("error subscribing to redis channel: %v ", err)
 	}
 
 	MSG_CNT := 5
@@ -46,10 +55,10 @@ func TestRedisClientPubSub(t *testing.T) {
 				if !ok {
 					break
 				}
-				fmt.Println("Received message from channel:", msg.Payload)
+				t.Log("Received message from channel:", msg.Payload)
 				count++
 				if count >= MSG_CNT {
-					fmt.Printf("Received %d messages from channel, returning\n", MSG_CNT)
+					t.Logf("Received %d messages from channel, returning", MSG_CNT)
 					wg.Done()
 					return
 				}
@@ -60,23 +69,28 @@ func TestRedisClientPubSub(t *testing.T) {
 	wg.Add(1)
 	i := 1
 	for i <= MSG_CNT {
-		go rcl.Publish(ctx, clients.MESSAGE_CHANNEL, fmt.Sprintf("message payload %d", i))
+		go rcl.Publish(ctx, MESSAGE_CHANNEL, fmt.Sprintf("message payload %d", i))
 		i++
 	}
 	wg.Done()
 
 	wg.Wait()
-	fmt.Println("message processing done")
+	t.Log("Redis pub sub message processing done")
 }
 
 func TestRedisClientSetGetDelete(t *testing.T) {
+	err := godotenv.Load("../../env/test.env")
+	if err != nil {
+		t.Fatalf("error loading environment: %v", err)
+	}
+
 	t.Parallel()
 
 	// Initialize the Redis client
-	rcl, err := clients.NewRedisClient()
+	cfg := getRedisTestClientConfig()
+	rcl, err := clients.NewRedisClient(cfg)
 	if err != nil {
-		fmt.Println("error initializing redis client")
-		return
+		t.Fatalf("error initializing redis client: %v ", err)
 	}
 	defer rcl.Close()
 
@@ -89,26 +103,28 @@ func TestRedisClientSetGetDelete(t *testing.T) {
 
 	err = rcl.Set(ctx, testKey, "test-value", time.Second*5)
 	if err != nil {
-		fmt.Println("error setting redis key-value pair - ", err)
-		return
+		t.Fatalf("error setting redis key-value pair: %v ", err)
 	}
 	value, err := rcl.Get(ctx, testKey)
 	if err != nil {
-		fmt.Println("error getting redis key-value pair - ", err)
-		return
+		t.Fatalf("error getting redis key-value pair: %v ", err)
 	}
-	fmt.Printf("Redis key - %s, value - %s\n", testKey, value)
+	t.Logf("Redis key - %s, value - %s", testKey, value)
 
 	err = rcl.Delete(ctx, testKey)
 	if err != nil {
-		fmt.Println("error deleting redis key-value pair - ", err)
-		return
+		t.Fatalf("error deleting redis key-value pair: %v ", err)
 	}
-	value, err = rcl.Get(ctx, testKey)
-	if err != nil {
-		fmt.Println("error getting redis key-value pair after deletion - ", err)
-	} else {
-		fmt.Printf("Unexpectedly found key - %s with value - %s after deletion\n", testKey, value)
+	if value, err = rcl.Get(ctx, testKey); err == nil {
+		t.Fatalf("Unexpectedly found key - %s with value - %s after deletion", testKey, value)
 	}
-	fmt.Println("Redis key-value operations test completed successfully")
+	t.Log("Redis set get delete operations test completed successfully")
+}
+
+func getRedisTestClientConfig() clients.RedisConfig {
+	redisPort := os.Getenv("REDIS_PORT")
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPass := os.Getenv("REDIS_PASSWORD")
+
+	return clients.NewRedisConfig(redisHost, redisPass, redisPort)
 }
