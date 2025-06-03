@@ -42,7 +42,7 @@ type PubSuber interface {
 	Subscriber
 }
 
-type Thaila interface {
+type Thaila[C ThailaConfig] interface {
 	Get(ctx context.Context, key string) (any, error)
 	Set(ctx context.Context, key string, value any, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
@@ -54,10 +54,11 @@ type ThailaConfig interface {
 	clients.RedisConfig | modules.LRUConfig
 }
 
-func NewThaila[T ThailaConfig](stgy ThailaStrategy, cfg T) (Thaila, error) {
+func NewThaila[C ThailaConfig](stgy ThailaStrategy, cfg C) (Thaila[C], error) {
 	if stgy != ThailaRedis && stgy != ThailaLRU {
 		return nil, ErrInvalidStrategy
 	}
+
 	if stgy == ThailaRedis {
 		redisCfg, ok := any(cfg).(clients.RedisConfig)
 		if !ok {
